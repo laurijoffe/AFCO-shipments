@@ -1,0 +1,42 @@
+name: AFCO Daily Shipments Sweep
+
+on:
+  schedule:
+    # Runs at 13:00 UTC daily (8:00 AM CT / 9:00 AM ET) — adjust as needed.
+    # The AFCO report typically lands in the evening, so this catches
+    # the prior day's report each morning. Cron is UTC only.
+    - cron: "0 13 * * *"
+  workflow_dispatch: {}  # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install beautifulsoup4
+
+      - name: Run email sweep
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          HISTORY_PATH: history.json
+        run: python3 email_sweep.py
+
+      - name: Commit updated history if changed
+        run: |
+          git config user.name "afco-sweep-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add history.json
+          git diff --cached --quiet || git commit -m "Update shipment history ($(date -u +%Y-%m-%d))"
+          git push
